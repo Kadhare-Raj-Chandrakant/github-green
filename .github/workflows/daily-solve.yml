@@ -1,0 +1,56 @@
+# GitHubGreenCard — Daily DSA Auto-Solve Pipeline
+# Runs every day at 01:00 UTC via cron.
+# Triggered automatically in the GitHub Actions runner context.
+
+name: Daily DSA Solve
+
+on:
+  schedule:
+    # At 01:00 UTC every day
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    # Allow manual trigger for testing
+    inputs:
+      dry_run:
+        description: "Dry run (no git push)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHubGreenCard Bot"
+          git config user.email "bot@githubgreencard.dev"
+
+      - name: Run pipeline
+        env:
+          # NVIDIA NIM API key — free at https://build.nvidia.com (starts with nvapi-)
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Fallback: OpenAI API key (only if not using NVIDIA NIM)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || 'false' }}
+        run: python -m src.main
